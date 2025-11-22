@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TransactAI - ML Pipeline Demo</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        pre, code, .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .terminal-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
+        .terminal-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        
+        @keyframes slideIn { from { transform: translateX(-10px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .slide-in { animation: slideIn 0.3s ease-out forwards; }
+
+        @keyframes pulse-subtle { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
+        .animate-pulse-subtle { animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+        /* Glassmorphism utilities */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+        }
+    </style>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 850: '#151e2e', 900: '#0f172a' },
+                        primary: { 50: '#eef2ff', 100: '#e0e7ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' }
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                        'glow': '0 0 15px rgba(99, 102, 241, 0.3)',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex selection:bg-primary-100 selection:text-primary-700 overflow-hidden">
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none"></div>
+
+    <!-- Background Decoration -->
+    <div class="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <div class="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-blue-100/40 blur-3xl"></div>
+        <div class="absolute top-[40%] -right-[10%] w-[40%] h-[40%] rounded-full bg-purple-100/40 blur-3xl"></div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="w-72 bg-white/80 backdrop-blur-xl border-r border-slate-200/60 fixed h-full hidden md:flex flex-col z-20 shadow-soft">
+        <div class="p-8 border-b border-slate-100/60">
+            <div class="flex items-center gap-3 text-slate-900 font-bold text-2xl tracking-tight">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 text-white">
+                    <i data-lucide="activity" size="22"></i>
+                </div>
+                TransactAI
+            </div>
+            <p class="text-xs font-medium text-slate-400 mt-2 ml-1">Enterprise ML Pipeline v1.3</p>
+        </div>
+        
+        <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-4">Core Modules</div>
+            
+            <button onclick="switchTab('dashboard')" id="nav-dashboard" class="group w-full flex items-center gap-3.5 px-4 py-3.5 text-sm font-semibold rounded-xl transition-all duration-200 bg-primary-50 text-primary-600 shadow-sm ring-1 ring-primary-100">
+                <i data-lucide="database" size="18" class="transition-transform group-hover:scale-110"></i>
+                Training & Data
+            </button>
+            
+            <button onclick="switchTab('inference')" id="nav-inference" class="group w-full flex items-center gap-3.5 px-4 py-3.5 text-sm font-medium rounded-xl transition-all duration-200 text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-md hover:shadow-slate-200/50">
+                <i data-lucide="brain-circuit" size="18" class="transition-transform group-hover:scale-110"></i>
+                Inference Engine
+            </button>
+            
+            <button onclick="switchTab('feedback')" id="nav-feedback" class="group w-full flex items-center gap-3.5 px-4 py-3.5 text-sm font-medium rounded-xl transition-all duration-200 text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-md hover:shadow-slate-200/50">
+                <div class="relative">
+                    <i data-lucide="check-circle-2" size="18" class="transition-transform group-hover:scale-110"></i>
+                    <span id="nav-badge" class="absolute -top-1 -right-1 w-2 h-2 bg-amber-500 rounded-full ring-2 ring-white"></span>
+                </div>
+                Review Queue
+            </button>
+        </nav>
+
+        <div class="p-4 mt-auto border-t border-slate-100/60 bg-gradient-to-b from-transparent to-slate-50/50">
+            <div id="system-status" class="p-4 rounded-2xl border border-slate-200 bg-white shadow-sm group transition-all duration-300 hover:shadow-md">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">System Status</span>
+                    <div id="status-indicator" class="w-2.5 h-2.5 rounded-full bg-slate-300 shadow-sm"></div>
+                </div>
+                <p id="status-text" class="text-sm font-bold text-slate-600 group-hover:text-slate-900 transition-colors">Awaiting Training</p>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Mobile Header -->
+    <div class="md:hidden fixed top-0 w-full bg-white/90 backdrop-blur-md border-b border-slate-200 z-30 px-4 py-3 flex justify-between items-center shadow-sm">
+        <span class="font-bold text-slate-900 flex items-center gap-2 text-lg">
+           <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white">
+               <i data-lucide="activity" size="18"></i> 
+           </div>
+           TransactAI
+        </span>
+        <div class="flex gap-2 bg-slate-100 p-1 rounded-lg">
+             <button onclick="switchTab('dashboard')" class="p-2 rounded-md hover:bg-white hover:shadow-sm transition-all"><i data-lucide="database" size="20" class="text-slate-600"></i></button>
+             <button onclick="switchTab('inference')" class="p-2 rounded-md hover:bg-white hover:shadow-sm transition-all"><i data-lucide="brain-circuit" size="20" class="text-slate-600"></i></button>
+             <button onclick="switchTab('feedback')" class="p-2 rounded-md hover:bg-white hover:shadow-sm transition-all"><i data-lucide="check-circle-2" size="20" class="text-slate-600"></i></button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="flex-1 md:ml-72 p-6 md:p-10 mt-16 md:mt-0 w-full relative z-10 overflow-y-auto h-screen custom-scrollbar">
+        
+        <header class="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <h1 id="page-title" class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">Training Pipeline</h1>
+                    <p id="page-desc" class="text-slate-500 mt-2 text-lg max-w-2xl leading-relaxed">Configure taxonomy, preprocess data, and train the Logistic Regression model.</p>
+                </div>
+                <div class="hidden md:flex gap-2">
+                    <button class="p-2.5 rounded-xl text-slate-400 hover:bg-white hover:text-slate-600 hover:shadow-sm transition-all"><i data-lucide="bell" size="20"></i></button>
+                    <button class="p-2.5 rounded-xl text-slate-400 hover:bg-white hover:text-slate-600 hover:shadow-sm transition-all"><i data-lucide="settings" size="20"></i></button>
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 ml-2 border-2 border-white shadow-sm"></div>
+                </div>
+            </div>
+        </header>
+
+        <!-- SECTION 1: DASHBOARD / TRAINING -->
+        <div id="view-dashboard" class="space-y-8 fade-in pb-12">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Taxonomy Editor -->
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="glass-panel rounded-2xl border border-slate-200/60 shadow-soft p-1 flex flex-col hover:shadow-lg transition-shadow duration-300">
+                        <div class="bg-white/50 p-5 rounded-t-xl border-b border-slate-100 flex items-center justify-between backdrop-blur-sm">
+                            <h3 class="font-bold text-slate-800 flex items-center gap-2.5">
+                                <div class="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+                                    <i data-lucide="file-json" size="18"></i>
+                                </div>
+                                Taxonomy Source
+                            </h3>
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">source_of_truth.json</span>
+                        </div>
+                        <div class="p-6 flex-1 flex flex-col">
+                            <p class="text-sm text-slate-500 mb-4 leading-relaxed">
+                                This JSON defines the category structure. The pipeline uses this to generate synthetic labels for the initial supervised training set.
+                            </p>
+                            <div class="bg-slate-900 rounded-xl p-1 shadow-inner overflow-hidden relative group ring-1 ring-slate-900/5">
+                                <div class="absolute top-0 left-0 w-full h-8 bg-slate-800/50 flex items-center px-4 gap-1.5 border-b border-white/10 z-10">
+                                    <div class="w-2.5 h-2.5 rounded-full bg-red-500/80"></div>
+                                    <div class="w-2.5 h-2.5 rounded-full bg-amber-500/80"></div>
+                                    <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></div>
+                                </div>
+                                <textarea id="taxonomy-input" class="w-full h-[320px] pt-10 p-4 bg-transparent text-emerald-400 focus:outline-none resize-none font-mono text-xs leading-relaxed terminal-scrollbar selection:bg-emerald-500/30" spellcheck="false"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dataset Distribution Chart -->
+                    <div class="glass-panel rounded-2xl border border-slate-200/60 p-6 shadow-soft">
+                        <div class="flex items-center justify-between mb-6">
+                            <h4 class="font-bold text-slate-800 flex items-center gap-2">
+                                <i data-lucide="bar-chart-3" class="text-indigo-600" size="18"></i>
+                                Dataset Distribution
+                            </h4>
+                            <span class="text-xs font-medium text-slate-400">Training samples per class</span>
+                        </div>
+                        <div class="flex items-end gap-4 h-32 px-2" id="distribution-chart">
+                            <!-- Chart bars generated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Training Control -->
+                <div class="space-y-8">
+                    <div class="glass-panel rounded-2xl border border-slate-200/60 shadow-soft p-6 hover:shadow-lg transition-shadow duration-300">
+                        <h3 class="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                            <i data-lucide="git-branch" size="18" class="text-slate-400"></i>
+                            Pipeline Steps
+                        </h3>
+                        <div class="space-y-0 relative">
+                            <!-- Connector Line -->
+                            <div class="absolute left-[19px] top-4 bottom-4 w-0.5 bg-slate-100"></div>
+                            
+                            <div class="relative flex items-start gap-4 pb-6 group">
+                                <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-indigo-600 font-bold shadow-sm relative z-10 group-hover:border-indigo-200 group-hover:text-indigo-700 transition-colors">1</div>
+                                <div class="pt-1">
+                                    <p class="font-bold text-slate-800 text-sm">Preprocessing</p>
+                                    <p class="text-xs text-slate-500 mt-0.5">Regex Cleaning & Normalization</p>
+                                </div>
+                            </div>
+                            <div class="relative flex items-start gap-4 pb-6 group">
+                                <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-purple-600 font-bold shadow-sm relative z-10 group-hover:border-purple-200 group-hover:text-purple-700 transition-colors">2</div>
+                                <div class="pt-1">
+                                    <p class="font-bold text-slate-800 text-sm">Feature Extraction</p>
+                                    <p class="text-xs text-slate-500 mt-0.5">TF-IDF Vectorizer (n-gram 1,2)</p>
+                                </div>
+                            </div>
+                            <div class="relative flex items-start gap-4 group">
+                                <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-emerald-600 font-bold shadow-sm relative z-10 group-hover:border-emerald-200 group-hover:text-emerald-700 transition-colors">3</div>
+                                <div class="pt-1">
+                                    <p class="font-bold text-slate-800 text-sm">Classification</p>
+                                    <p class="text-xs text-slate-500 mt-0.5">Logistic Regression (L2 penalty)</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="train-btn" onclick="startTraining()" class="mt-8 w-full py-4 rounded-xl flex items-center justify-center gap-2.5 font-bold text-sm transition-all bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:shadow-lg hover:shadow-indigo-500/25 hover:scale-[1.02] active:scale-[0.98]">
+                            <i data-lucide="play" size="18" class="fill-white/20"></i> Start Model Training
+                        </button>
+                    </div>
+
+                    <!-- Terminal Output -->
+                    <div class="rounded-2xl bg-slate-900 border border-slate-800 p-1 shadow-2xl shadow-slate-900/20 flex flex-col h-64">
+                        <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between bg-white/5 rounded-t-xl">
+                            <div class="flex items-center gap-2 text-slate-400 text-xs font-medium">
+                                <i data-lucide="terminal-square" size="14"></i>
+                                <span>Build Output</span>
+                            </div>
+                            <div class="flex gap-1.5">
+                                <div class="w-2 h-2 rounded-full bg-slate-600"></div>
+                                <div class="w-2 h-2 rounded-full bg-slate-600"></div>
+                            </div>
+                        </div>
+                        <div class="p-4 flex-1 overflow-hidden relative">
+                            <div id="console-logs" class="h-full overflow-y-auto terminal-scrollbar font-mono text-[11px] text-slate-300 space-y-1.5">
+                                <span class="text-slate-500 italic">Waiting for job execution...</span>
+                            </div>
+                        </div>
+                        <!-- Progress Bar Container -->
+                        <div id="progress-container" class="px-4 pb-4 opacity-0 transition-opacity duration-300">
+                            <div class="flex justify-between text-[10px] font-mono text-emerald-400 mb-1">
+                                <span>compiling...</span>
+                                <span id="progress-text">0%</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-1">
+                                <div id="progress-bar" class="bg-gradient-to-r from-emerald-500 to-emerald-400 h-1 rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(16,185,129,0.5)]" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 2: INFERENCE -->
+        <div id="view-inference" class="space-y-8 hidden fade-in pb-12">
+            
+            <div id="inference-warning" class="bg-amber-50/80 backdrop-blur border border-amber-200/60 rounded-2xl p-5 flex items-start gap-4 text-amber-900 shadow-sm">
+                <div class="p-2 bg-amber-100 rounded-lg shrink-0 text-amber-600">
+                    <i data-lucide="alert-triangle" size="20"></i>
+                </div>
+                <div>
+                    <h4 class="font-bold text-sm mb-1">Model not active</h4>
+                    <p class="text-sm text-amber-800/80 leading-relaxed">The inference engine is running on fallback logic. For accurate predictions, please complete the training process in the dashboard tab first.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[600px]">
+                <div class="flex flex-col gap-6 h-full">
+                    <div class="glass-panel rounded-2xl border border-slate-200/60 shadow-soft p-8 flex-1 flex flex-col justify-center">
+                        <h3 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+                            Live Classifier
+                            <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-100 text-indigo-700 uppercase tracking-wide">v1.2</span>
+                        </h3>
+                        
+                        <div class="space-y-6">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 ml-1">Transaction Descriptor</label>
+                                <div class="relative group">
+                                    <input type="text" id="transaction-input" 
+                                        placeholder="e.g. AMZN Mktplace, UBER TRIP 0812, Shell Gas..."
+                                        class="w-full px-5 py-4 rounded-xl bg-slate-50 border-2 border-slate-200 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none pl-12 shadow-sm"
+                                        onkeydown="if(event.key === 'Enter') runInference()">
+                                    <i data-lucide="search" class="absolute left-4 top-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size="20"></i>
+                                </div>
+                            </div>
+                            
+                            <button onclick="runInference()" class="w-full py-4 bg-slate-900 hover:bg-indigo-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-slate-900/20 hover:shadow-indigo-600/30 hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                                <i data-lucide="wand-2" size="18"></i> Analyze Transaction
+                            </button>
+                        </div>
+
+                        <div class="mt-10">
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Quick Test</p>
+                            <div class="flex flex-wrap gap-3">
+                                <button onclick="setInput('UBER TRIP 8/10')" class="px-4 py-2 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 text-slate-600 text-xs font-semibold rounded-lg transition-all shadow-sm hover:shadow">UBER TRIP 8/10</button>
+                                <button onclick="setInput('Starbucks Coffee #22')" class="px-4 py-2 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 text-slate-600 text-xs font-semibold rounded-lg transition-all shadow-sm hover:shadow">Starbucks #22</button>
+                                <button onclick="setInput('SHELL OIL 9932')" class="px-4 py-2 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 text-slate-600 text-xs font-semibold rounded-lg transition-all shadow-sm hover:shadow">SHELL OIL</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Explainability Card -->
+                    <div id="explainability-card" class="hidden glass-panel rounded-2xl border border-slate-200/60 shadow-soft p-6 bg-gradient-to-br from-white to-indigo-50/30">
+                        <h4 class="font-bold text-slate-800 mb-4 flex items-center gap-2 text-sm">
+                            <i data-lucide="microscope" class="text-indigo-600" size="16"></i>
+                            Model Interpretability
+                        </h4>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between p-3 bg-white/60 rounded-lg border border-slate-100">
+                                <span class="text-xs font-medium text-slate-500">Normalized Input</span>
+                                <span id="explain-cleaned" class="font-mono text-xs text-slate-700 font-semibold"></span>
+                            </div>
+                            <div id="active-learning-badge" class="hidden p-3 bg-emerald-50 rounded-lg border border-emerald-100 flex items-start gap-2">
+                                <i data-lucide="zap" class="text-emerald-500 mt-0.5" size="14"></i>
+                                <div>
+                                    <p class="text-xs font-bold text-emerald-800">Active Learning Recall</p>
+                                    <p class="text-[10px] text-emerald-600">This pattern was learned from your manual review.</p>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">Key Features (TF-IDF)</p>
+                                <div id="explain-features" class="flex flex-wrap gap-2">
+                                    <!-- Feature tags injected here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Panel -->
+                <div class="h-full">
+                    <!-- Empty State -->
+                    <div id="result-empty" class="h-full border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 p-12 bg-slate-50/50">
+                        <div class="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-6 animate-pulse-subtle">
+                            <i data-lucide="scan-search" size="40" class="text-slate-300"></i>
+                        </div>
+                        <p class="font-medium">Ready for analysis</p>
+                        <p class="text-sm text-slate-400 mt-1">Enter a transaction to see the prediction</p>
+                    </div>
+
+                    <!-- Result Card -->
+                    <div id="result-card" class="hidden relative bg-white rounded-2xl border border-slate-200 shadow-2xl shadow-indigo-100 overflow-hidden h-full flex flex-col">
+                        <div class="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 text-white relative overflow-hidden">
+                            <!-- Decorative circles -->
+                            <div class="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+                            
+                            <div class="relative z-10">
+                                <p class="text-indigo-100 text-xs font-bold uppercase tracking-wider mb-2 opacity-80">Predicted Category</p>
+                                <div class="flex items-center gap-4">
+                                    <div class="p-3 bg-white/20 backdrop-blur-md rounded-xl border border-white/10">
+                                        <i id="result-icon" data-lucide="shopping-bag" size="32" class="text-white"></i>
+                                    </div>
+                                    <h2 id="result-category" class="text-4xl font-extrabold tracking-tight">Shopping</h2>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-8 space-y-8 flex-1 bg-white">
+                            <div>
+                                <div class="flex justify-between items-end mb-3">
+                                    <span class="text-sm font-semibold text-slate-500">Confidence Score</span>
+                                    <span id="result-score-text" class="text-3xl font-black text-slate-900">94%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden shadow-inner">
+                                    <div id="result-score-bar" class="bg-indigo-600 h-3 rounded-full transition-all duration-1000 ease-out shadow-lg shadow-indigo-500/40" style="width: 0%"></div>
+                                </div>
+                                
+                                <div id="result-warning" class="hidden mt-4 p-3 bg-rose-50 border border-rose-100 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                                    <i data-lucide="alert-circle" size="18" class="text-rose-600 shrink-0"></i>
+                                    <p class="text-xs font-medium text-rose-700">Low confidence score. This transaction has been automatically flagged for human review.</p>
+                                </div>
+                            </div>
+
+                            <div class="flex-1 bg-slate-50 rounded-xl border border-slate-200 p-0 overflow-hidden flex flex-col">
+                                <div class="px-4 py-2 border-b border-slate-200 bg-slate-100/50 flex justify-between items-center">
+                                    <span class="text-[10px] font-bold text-slate-400 uppercase">API Response</span>
+                                    <span class="text-[10px] font-mono text-slate-400">24ms</span>
+                                </div>
+                                <div class="relative flex-1 overflow-hidden">
+                                    <pre id="result-json" class="absolute inset-0 p-4 font-mono text-xs text-slate-600 leading-relaxed whitespace-pre-wrap overflow-auto"></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 3: FEEDBACK / QUEUE -->
+        <div id="view-feedback" class="space-y-6 hidden fade-in pb-12">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <div>
+                    <h3 class="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                        Review Queue
+                        <span id="queue-count-badge" class="px-2.5 py-1 bg-amber-100 text-amber-700 text-xs rounded-lg font-bold border border-amber-200 hidden">2</span>
+                    </h3>
+                    <p class="text-sm text-slate-500 mt-1 font-medium">Validate low-confidence predictions to improve model accuracy.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="px-4 py-2 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center gap-2 text-sm font-medium text-slate-600">
+                         <div class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                         Active Learning
+                    </div>
+                    <button class="p-2.5 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm">
+                        <i data-lucide="list-filter" size="18"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass-panel rounded-2xl border border-slate-200/60 shadow-soft overflow-hidden ring-1 ring-slate-900/5 min-h-[400px]">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-200 uppercase text-[11px] tracking-wider backdrop-blur-sm">
+                            <tr>
+                                <th class="px-6 py-4">Transaction Descriptor</th>
+                                <th class="px-6 py-4">Predicted Label</th>
+                                <th class="px-6 py-4">Confidence</th>
+                                <th class="px-6 py-4">Key Terms</th>
+                                <th class="px-6 py-4 text-right">Validation</th>
+                            </tr>
+                        </thead>
+                        <tbody id="queue-tbody" class="divide-y divide-slate-100 bg-white">
+                            <!-- Rows generated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="queue-footer" class="bg-slate-50/50 px-6 py-4 border-t border-slate-200 flex items-center justify-between backdrop-blur-sm">
+                    <div class="text-xs font-medium text-slate-500">Data generated just now</div>
+                    <button class="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors">
+                        Export Dataset <i data-lucide="download" size="12"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Logic -->
+    <script>
+        // --- Data & State ---
+        const INITIAL_TAXONOMY = {
+            "Shopping": ["amzn", "amazon", "mktplace", "target", "walmart", "shopify", "store"],
+            "Fuel": ["shell", "bp", "exxon", "mobil", "gas", "station", "oil"],
+            "Travel": ["uber", "lyft", "airbnb", "hotel", "delta", "airline", "trip", "flight"],
+            "Dining": ["starbucks", "mcdonalds", "burger", "grill", "coffee", "diner", "eats"],
+            "Utilities": ["electric", "water", "city", "power", "comcast", "verizon", "bill"]
+        };
+
+        let state = {
+            activeTab: 'dashboard',
+            isTrained: false,
+            labeledData: [], // Active Learning Memory
+            needsReview: [
+                { transaction: "PAYPAL *SPOOFY", category: "Uncategorized", confidence: 0.45, explanation: [] },
+                { transaction: "TST* 7-ELEVEN", category: "Fuel", confidence: 0.62, explanation: ["station"] },
+            ]
+        };
+
+        // --- Helpers ---
+        
+        // Levenshtein Distance for Fuzzy Matching
+        function getLevenshteinDistance(a, b) {
+            const matrix = [];
+            for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+            for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+            for (let i = 1; i <= b.length; i++) {
+                for (let j = 1; j <= a.length; j++) {
+                    if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                        matrix[i][j] = matrix[i - 1][j - 1];
+                    } else {
+                        matrix[i][j] = Math.min(
+                            matrix[i - 1][j - 1] + 1,
+                            matrix[i][j - 1] + 1,
+                            matrix[i - 1][j] + 1
+                        );
+                    }
+                }
+            }
+            return matrix[b.length][a.length];
+        }
+
+        // Toast Notification System
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const colors = type === 'success' ? 'bg-emerald-600 shadow-emerald-500/20' : 'bg-slate-800 shadow-slate-900/20';
+            const icon = type === 'success' ? 'check-circle-2' : 'info';
+            
+            toast.className = ${colors} text-white pl-4 pr-6 py-4 rounded-xl shadow-lg flex items-center gap-3 transform transition-all duration-500 translate-y-10 opacity-0 pointer-events-auto;
+            toast.innerHTML = <i data-lucide="${icon}" size="20"></i> <span class="font-medium text-sm tracking-wide">${message}</span>;
+            
+            container.appendChild(toast);
+            lucide.createIcons();
+            
+            requestAnimationFrame(() => toast.classList.remove('translate-y-10', 'opacity-0'));
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-4', 'opacity-0');
+                setTimeout(() => toast.remove(), 500);
+            }, 3500);
+        }
+
+        // Chart Rendering
+        function renderChart() {
+            const chartContainer = document.getElementById('distribution-chart');
+            const taxonomy = JSON.parse(document.getElementById('taxonomy-input').value);
+            chartContainer.innerHTML = '';
+            
+            const categories = Object.keys(taxonomy);
+            // Generate pseudo-random heights for demo
+            const heights = [65, 45, 85, 55, 30, 20, 40];
+            const colors = ['bg-indigo-500', 'bg-purple-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500'];
+
+            categories.forEach((cat, i) => {
+                const height = heights[i % heights.length];
+                const color = colors[i % colors.length];
+                
+                chartContainer.innerHTML += `
+                    <div class="flex-1 flex flex-col items-center gap-2 group h-full justify-end">
+                        <div class="w-full bg-slate-100 rounded-t-lg relative overflow-hidden h-full flex items-end">
+                            <div class="w-full ${color} hover:opacity-80 transition-all duration-1000 ease-out" style="height: ${height}%"></div>
+                        </div>
+                        <span class="text-[10px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors truncate w-full text-center">${cat}</span>
+                    </div>
+                `;
+            });
+        }
+
+        // Initialize
+        document.getElementById('taxonomy-input').value = JSON.stringify(INITIAL_TAXONOMY, null, 2);
+        lucide.createIcons();
+        updateQueueCount();
+        renderQueue();
+        renderChart();
+
+        // --- Navigation ---
+        function switchTab(tabId) {
+            // Hide all
+            ['dashboard', 'inference', 'feedback'].forEach(id => {
+                document.getElementById(view-${id}).classList.add('hidden');
+                const navBtn = document.getElementById(nav-${id});
+                navBtn.className = "group w-full flex items-center gap-3.5 px-4 py-3.5 text-sm font-medium rounded-xl transition-all duration-200 text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-md hover:shadow-slate-200/50";
+            });
+
+            // Show active
+            document.getElementById(view-${tabId}).classList.remove('hidden');
+            const activeNav = document.getElementById(nav-${tabId});
+            activeNav.className = "group w-full flex items-center gap-3.5 px-4 py-3.5 text-sm font-semibold rounded-xl transition-all duration-200 bg-primary-50 text-primary-600 shadow-sm ring-1 ring-primary-100";
+
+            // Update Header Text
+            const titles = {
+                'dashboard': ['Training Pipeline', 'Configure taxonomy, preprocess data, and train the Logistic Regression model.'],
+                'inference': ['Inference Engine', 'Real-time transaction categorization using TF-IDF vectorization.'],
+                'feedback': ['Review Queue', 'Validate low-confidence predictions to improve model accuracy.']
+            };
+            
+            const titleEl = document.getElementById('page-title');
+            const descEl = document.getElementById('page-desc');
+            
+            titleEl.classList.add('opacity-0');
+            descEl.classList.add('opacity-0');
+            
+            setTimeout(() => {
+                titleEl.textContent = titles[tabId][0];
+                descEl.textContent = titles[tabId][1];
+                titleEl.classList.remove('opacity-0');
+                descEl.classList.remove('opacity-0');
+                if(tabId === 'dashboard') renderChart();
+            }, 200);
+            
+            state.activeTab = tabId;
+            lucide.createIcons();
+        }
+
+        // --- Training Logic ---
+        function startTraining() {
+            if(state.isTrained) {
+                document.getElementById('status-text').textContent = "Retraining...";
+                document.getElementById('status-indicator').className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse";
+            }
+
+            const btn = document.getElementById('train-btn');
+            btn.disabled = true;
+            btn.innerHTML = <i data-lucide="loader-2" class="animate-spin"></i> Processing...;
+            btn.classList.add('opacity-75', 'cursor-not-allowed');
+            lucide.createIcons();
+            
+            const logContainer = document.getElementById('console-logs');
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            
+            logContainer.innerHTML = '';
+            progressContainer.classList.remove('opacity-0');
+            progressBar.style.width = '0%';
+
+            const steps = [
+                { p: 10, msg: "Loading configuration from source_of_truth.json..." },
+                { p: 25, msg: "Preprocessing dataset: Normalization & Regex cleaning..." },
+                { p: 40, msg: "Building vocabulary (ngrams=1,2)..." },
+                { p: 55, msg: "Vectorizing corpus (TF-IDF)..." },
+                { p: 75, msg: "Fitting LogisticRegression(C=1.0, solver='lbfgs')..." },
+                { p: 90, msg: "Serializing artifacts: vectorizer.pkl, model.pkl..." },
+                { p: 100, msg: "Training Successfully Completed. Validation F1-Score: 0.94" }
+            ];
+
+            let currentStep = 0;
+            const interval = setInterval(() => {
+                if (currentStep >= steps.length) {
+                    clearInterval(interval);
+                    finishTraining();
+                    return;
+                }
+                const step = steps[currentStep];
+                
+                const logEntry = document.createElement('div');
+                logEntry.className = "slide-in flex gap-2";
+                logEntry.innerHTML = <span class="text-emerald-500 font-bold">➜</span> <span>[${new Date().toLocaleTimeString()}] ${step.msg}</span>;
+                logContainer.appendChild(logEntry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+
+                progressBar.style.width = ${step.p}%;
+                progressText.textContent = ${step.p}%;
+                
+                currentStep++;
+            }, 800);
+        }
+
+        function finishTraining() {
+            state.isTrained = true;
+            
+            document.getElementById('system-status').className = "p-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 shadow-sm group transition-all duration-300 hover:shadow-md";
+            document.getElementById('status-indicator').className = "w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse";
+            document.getElementById('status-text').innerHTML = "System Active <span class='text-xs font-normal text-emerald-600 ml-1'>v1.2</span>";
+            document.getElementById('status-text').className = "text-sm font-bold text-emerald-800";
+
+            const btn = document.getElementById('train-btn');
+            btn.disabled = false;
+            btn.className = "mt-8 w-full py-4 rounded-xl flex items-center justify-center gap-2.5 font-bold text-sm transition-all bg-white text-emerald-600 border border-emerald-200 hover:bg-emerald-50 hover:shadow-md active:scale-[0.98]";
+            btn.innerHTML = <i data-lucide="refresh-cw" size="18"></i> Retrain Model;
+            
+            document.getElementById('inference-warning').classList.add('hidden');
+            
+            showToast("Model trained successfully!");
+            lucide.createIcons();
+        }
+
+        // --- Inference Logic ---
+        function setInput(text) {
+            document.getElementById('transaction-input').value = text;
+            runInference();
+        }
+
+        function cleanText(text) {
+            return text.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+        }
+
+        function runInference() {
+            const input = document.getElementById('transaction-input').value;
+            if(!input) return;
+
+            const cleaned = cleanText(input);
+            
+            // 1. Check Active Learning Memory first (Exact Match)
+            const known = state.labeledData.find(d => d.transaction === input);
+            if(known) {
+                displayResult(input, cleaned, known.category, 1.0, [], true);
+                return;
+            }
+
+            // 2. Fallback to TF-IDF / Fuzzy Logic
+            const taxonomy = JSON.parse(document.getElementById('taxonomy-input').value);
+            let bestCategory = "Uncategorized";
+            let maxScore = 0;
+            let explanation = [];
+
+            Object.keys(taxonomy).forEach(cat => {
+                let matches = 0;
+                taxonomy[cat].forEach(word => {
+                    // Improved Logic: Exact Match OR Fuzzy Match (typos)
+                    const dist = getLevenshteinDistance(word, cleaned);
+                    const isFuzzyMatch = word.length > 4 && dist <= 2; 
+                    
+                    if(cleaned.includes(word) || isFuzzyMatch) {
+                        matches++;
+                        explanation.push(word);
+                    }
+                });
+                if(matches > maxScore) {
+                    maxScore = matches;
+                    bestCategory = cat;
+                }
+            });
+
+            // Mock Confidence Logic
+            let confidence = maxScore > 0 ? 0.75 + (Math.random() * 0.24) : 0.30 + (Math.random() * 0.30);
+            
+            displayResult(input, cleaned, bestCategory, confidence, explanation, false);
+        }
+
+        function displayResult(input, cleaned, category, confidence, explanation, isRecall) {
+            document.getElementById('result-empty').classList.add('hidden');
+            document.getElementById('result-card').classList.remove('hidden');
+            document.getElementById('explainability-card').classList.remove('hidden');
+
+            document.getElementById('result-category').textContent = category;
+            document.getElementById('result-score-text').textContent = ${(confidence * 100).toFixed(0)}%;
+            document.getElementById('result-score-bar').style.width = ${confidence * 100}%;
+            
+            const iconMap = {
+                "Shopping": "shopping-bag", "Fuel": "fuel", "Travel": "plane", 
+                "Dining": "coffee", "Utilities": "zap", "Uncategorized": "help-circle"
+            };
+            const iconName = iconMap[category] || "tag";
+            document.getElementById('result-icon').setAttribute('data-lucide', iconName);
+            
+            const scoreText = document.getElementById('result-score-text');
+            const scoreBar = document.getElementById('result-score-bar');
+            const warning = document.getElementById('result-warning');
+            const recallBadge = document.getElementById('active-learning-badge');
+
+            // Reset styles
+            recallBadge.classList.add('hidden');
+
+            if(isRecall) {
+                scoreText.className = "text-3xl font-black text-emerald-600";
+                scoreBar.className = "bg-emerald-500 h-3 rounded-full transition-all duration-1000 ease-out shadow-lg shadow-emerald-500/40";
+                warning.classList.add('hidden');
+                recallBadge.classList.remove('hidden');
+            } else if(confidence > 0.9) {
+                scoreText.className = "text-3xl font-black text-emerald-600";
+                scoreBar.className = "bg-emerald-500 h-3 rounded-full transition-all duration-1000 ease-out shadow-lg shadow-emerald-500/40";
+                warning.classList.add('hidden');
+            } else if (confidence > 0.7) {
+                scoreText.className = "text-3xl font-black text-amber-500";
+                scoreBar.className = "bg-amber-500 h-3 rounded-full transition-all duration-1000 ease-out shadow-lg shadow-amber-500/40";
+                warning.classList.add('hidden');
+            } else {
+                scoreText.className = "text-3xl font-black text-rose-600";
+                scoreBar.className = "bg-rose-500 h-3 rounded-full transition-all duration-1000 ease-out shadow-lg shadow-rose-500/40";
+                warning.classList.remove('hidden');
+                
+                const exists = state.needsReview.some(i => i.transaction === input);
+                if(!exists && !isRecall) {
+                    const newItem = { transaction: input, category: category, confidence: parseFloat(confidence.toFixed(2)), explanation };
+                    state.needsReview.unshift(newItem);
+                    updateQueueCount();
+                    renderQueue();
+                    showToast("Transaction added to review queue", "info");
+                }
+            }
+
+            // JSON Output
+            const resultObj = {
+                prediction: {
+                    label: category,
+                    confidence: parseFloat(confidence.toFixed(2)),
+                    source: isRecall ? "memory_recall" : "model_inference",
+                    model_version: "v1.3"
+                },
+                input: { raw: input, preprocessed: cleaned }
+            };
+            document.getElementById('result-json').textContent = JSON.stringify(resultObj, null, 2);
+
+            // Explainability features
+            document.getElementById('explain-cleaned').textContent = "${cleaned}";
+            const featContainer = document.getElementById('explain-features');
+            featContainer.innerHTML = '';
+            if(explanation.length > 0) {
+                explanation.forEach(w => {
+                    featContainer.innerHTML += <span class="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-md border border-indigo-100 shadow-sm">"${w}"</span>;
+                });
+            } else {
+                featContainer.innerHTML = <span class="text-xs text-slate-400 italic flex items-center gap-1"><i data-lucide="info" size="12"></i> No lexical matches in vocabulary</span>;
+            }
+            lucide.createIcons();
+        }
+
+        function updateQueueCount() {
+            const badge = document.getElementById('queue-count-badge');
+            const navBadge = document.getElementById('nav-badge');
+            if(state.needsReview.length > 0) {
+                badge.classList.remove('hidden');
+                badge.textContent = state.needsReview.length;
+                navBadge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+                navBadge.classList.add('hidden');
+            }
+        }
+
+        // --- Review Queue Logic ---
+        function renderQueue() {
+            const tbody = document.getElementById('queue-tbody');
+            tbody.innerHTML = '';
+
+            if(state.needsReview.length === 0) {
+                // SVG Illustration for Empty State
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-24 text-center select-none">
+                            <div class="w-48 mx-auto mb-6 opacity-50">
+                                <svg viewBox="0 0 200 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M40 120h120v10H40z" fill="#E2E8F0"/>
+                                    <rect x="60" y="40" width="80" height="80" rx="8" fill="#FFF" stroke="#CBD5E1" stroke-width="2"/>
+                                    <path d="M85 80l10 10 20-20" stroke="#10B981" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <circle cx="160" cy="50" r="15" fill="#F0F9FF"/>
+                                    <circle cx="30" cy="90" r="10" fill="#F0F9FF"/>
+                                </svg>
+                            </div>
+                            <h3 class="text-slate-900 font-bold text-lg">All Clear!</h3>
+                            <p class="text-slate-500 text-sm mt-2 max-w-xs mx-auto">You've reviewed all low-confidence predictions. The model is learning from your feedback.</p>
+                        </td>
+                    </tr>
+                `;
+                document.getElementById('queue-footer').classList.add('hidden');
+            } else {
+                document.getElementById('queue-footer').classList.remove('hidden');
+                state.needsReview.forEach((item, idx) => {
+                    const confPercent = (item.confidence * 100).toFixed(0);
+                    const explHtml = item.explanation && item.explanation.length > 0 
+                        ? item.explanation.map(w => <span class="text-[10px] font-bold bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 mr-1">${w}</span>).join('')
+                        : <span class="text-slate-300 text-[10px] italic">--</span>;
+
+                    const row = `
+                        <tr class="group hover:bg-slate-50 transition-colors border-b border-slate-50">
+                            <td class="px-6 py-4">
+                                <div class="font-bold text-slate-800">${item.transaction}</div>
+                                <div class="text-[10px] text-slate-400 font-mono mt-1 bg-slate-100 inline-block px-1 rounded">${cleanText(item.transaction)}</div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="px-2.5 py-1 rounded-md text-xs font-bold bg-white border border-slate-200 text-slate-700 shadow-sm">${item.category}</span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                        <div class="h-full bg-amber-500 rounded-full" style="width: ${confPercent}%"></div>
+                                    </div>
+                                    <span class="text-amber-600 font-bold text-xs">${confPercent}%</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="flex flex-wrap gap-1">${explHtml}</div>
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                <div class="flex items-center justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                                    <button onclick="handleReview(${idx}, 'approve')" class="p-2 rounded-lg text-emerald-600 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 hover:shadow-sm transition-all" title="Confirm Label">
+                                        <i data-lucide="check" size="16"></i>
+                                    </button>
+                                    <button onclick="handleReview(${idx}, 'edit')" class="p-2 rounded-lg text-slate-500 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 hover:shadow-sm transition-all" title="Edit Label">
+                                        <i data-lucide="edit-3" size="16"></i>
+                                    </button>
+                                    <button onclick="handleReview(${idx}, 'reject')" class="p-2 rounded-lg text-rose-400 hover:bg-rose-50 hover:text-rose-600 border border-transparent hover:border-rose-100 transition-all" title="Ignore">
+                                        <i data-lucide="x" size="16"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            }
+            lucide.createIcons();
+        }
+
+        function handleReview(idx, action) {
+            // Active Learning: Save the labeled data
+            const item = state.needsReview[idx];
+            if(action === 'approve' || action === 'edit') {
+                // For now, assume edit keeps same category or user accepted default
+                // In a real app, 'edit' would open a modal to change category
+                state.labeledData.push({ transaction: item.transaction, category: item.category });
+                showToast("Label saved to training set");
+            } else {
+                showToast("Transaction ignored", "info");
+            }
+
+            state.needsReview.splice(idx, 1);
+            updateQueueCount();
+            renderQueue();
+        }
+
+    </script>
+</body>
+</html>
